@@ -1,0 +1,511 @@
+---
+# DogDock Agent Monitor -- unified kubectl-apply manifest (no Helm required)
+#
+# Deploys the full host-agent detection pipeline using the pre-built public
+# images published by CI to Google Artifact Registry:
+#   asia-southeast3-docker.pkg.dev/dogdock/dogdock-public/dogdock-platform-agent
+#   asia-southeast3-docker.pkg.dev/dogdock/dogdock-public/dogdock-platform-agent-api
+#   asia-southeast3-docker.pkg.dev/dogdock/dogdock-public/dogdock-platform-agent-webhook
+#   asia-southeast3-docker.pkg.dev/dogdock/dogdock-public/dogdock-platform-agent-worker
+#
+# BEFORE APPLYING: edit the Secret below (MONGO_ROOT_PASSWORD, NEXTAUTH_SECRET)
+# -- generate real values with: openssl rand -base64 48
+#
+# If you'd rather use Helm (more configurable: replicas, resources, ingress
+# TLS, existingSecret, etc.), see ../../dogdock-platform-agent-helm/ instead.
+# This file is the "no Helm" equivalent of that chart, same pattern
+# dogdock-kube-monitor uses (see its dogdock-deploy.yaml).
+#
+# Apply with:
+#   kubectl apply -f k8s/dogdock-agent-deploy.yaml
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dogdock-agent
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: dogdock-agent-secrets
+  namespace: dogdock-agent
+type: Opaque
+stringData:
+  MONGO_ROOT_USER: "dogdock"
+  MONGO_ROOT_PASSWORD: "CHANGE_ME_TO_A_LONG_RANDOM_VALUE"   # openssl rand -base64 48
+  NEXTAUTH_SECRET: "CHANGE_ME_TO_A_LONG_RANDOM_VALUE"         # openssl rand -base64 48
+  AWS_EVENTBRIDGE_SECRET: ""   # optional -- leave blank to disable /api/cloudevents/aws
+  GCS_BUCKET: ""                # optional -- leave blank to disable GCS dual-write
+
+---
+# ---------------------------------------------------------------------------
+# Mongo
+# ---------------------------------------------------------------------------
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mongo
+  namespace: dogdock-agent
+  labels:
+    app: dogdock-agent-mongo
+spec:
+  serviceName: mongo
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dogdock-agent-mongo
+  template:
+    metadata:
+      labels:
+        app: dogdock-agent-mongo
+    spec:
+      containers:
+        - name: mongo
+          image: mongo:7
+          ports:
+            - containerPort: 27017
+              name: mongo
+          env:
+            - name: MONGO_INITDB_ROOT_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: dogdock-agent-secrets
+                  key: MONGO_ROOT_USER
+            - name: MONGO_INITDB_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: dogdock-agent-secrets
+                  key: MONGO_ROOT_PASSWORD
+          volumeMounts:
+            - name: data
+              mountPath: /data/db
+          readinessProbe:
+            exec:
+              command: ["mongosh", "--eval", "db.adminCommand('ping')"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 2Gi
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 20Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongo
+  namespace: dogdock-agent
+spec:
+  clusterIP: None
+  selector:
+    app: dogdock-agent-mongo
+  ports:
+    - port: 27017
+      targetPort: 27017
+
+---
+# ---------------------------------------------------------------------------
+# NATS
+# ---------------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nats
+  namespace: dogdock-agent
+  labels:
+    app: dogdock-agent-nats
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dogdock-agent-nats
+  template:
+    metadata:
+      labels:
+        app: dogdock-agent-nats
+    spec:
+      containers:
+        - name: nats
+          image: nats:2-alpine
+          args: ["--jetstream", "--http_port", "8222", "--max_payload", "1048576"]
+          ports:
+            - containerPort: 4222
+              name: client
+            - containerPort: 8222
+              name: monitor
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nats
+  namespace: dogdock-agent
+spec:
+  selector:
+    app: dogdock-agent-nats
+  ports:
+    - name: client
+      port: 4222
+      targetPort: 4222
+    - name: monitor
+      port: 8222
+      targetPort: 8222
+
+---
+# ---------------------------------------------------------------------------
+# agent-api
+# ---------------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent-api
+  namespace: dogdock-agent
+  labels:
+    app: dogdock-agent-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: dogdock-agent-api
+  template:
+    metadata:
+      labels:
+        app: dogdock-agent-api
+    spec:
+      containers:
+        - name: agent-api
+          image: "asia-southeast3-docker.pkg.dev/dogdock/dogdock-public/dogdock-platform-agent-api:main"
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8093
+              name: http
+          env:
+            - name: PORT
+              value: "8093"
+            - name: MONGO_ROOT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: dogdock-agent-secrets
+                  key: MONGO_ROOT_USER
+            - name: MONGO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: dogdock-agent-secrets
+                  key: MONGO_ROOT_PASSWORD
+            - name: MONGODB_URI
+              value: "mongodb://$(MONGO_ROOT_USER):$(MONGO_ROOT_PASSWORD)@mongo:27017"
+            - name: MONGODB_DATABASE
+              value: "dogdock_agent"
+            - name: NATS_URL
+              value: "nats://nats:4222"
+            - name: NATS_TOPIC
+              value: "agent.report"
+            - name: NEXTAUTH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: dogdock-agent-secrets
+                  key: NEXTAUTH_SECRET
+            - name: PLATFORM_API_URL
+              valueFrom:
+                secretKeyRef:
+                  name: dogdock-agent-secrets
+                  key: PLATFORM_API_URL
+            # Optional -- omit CLICKHOUSE_ADDR/REDIS_URL entirely to keep
+            # a lightweight install; agent-api logs a warning and keeps
+            # running without them (analytics/caching routes disabled).
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8093
+            initialDelaySeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8093
+            initialDelaySeconds: 15
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: agent-api
+  namespace: dogdock-agent
+spec:
+  selector:
+    app: dogdock-agent-api
+  ports:
+    - port: 8093
+      targetPort: 8093
+
+---
+# ---------------------------------------------------------------------------
+# agent-webhook
+# ---------------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent-webhook
+  namespace: dogdock-agent
+  labels:
+    app: dogdock-agent-webhook
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dogdock-agent-webhook
+  template:
+    metadata:
+      labels:
+        app: dogdock-agent-webhook
+    spec:
+      containers:
+        - name: agent-webhook
+          image: "asia-southeast3-docker.pkg.dev/dogdock/dogdock-public/dogdock-platform-agent-webhook:main"
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8094
+              name: http
+          env:
+            - name: PORT
+              value: "8094"
+            - name: MONGO_ROOT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: dogdock-agent-secrets
+                  key: MONGO_ROOT_USER
+            - name: MONGO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: dogdock-agent-secrets
+                  key: MONGO_ROOT_PASSWORD
+            - name: MONGODB_URI
+              value: "mongodb://$(MONGO_ROOT_USER):$(MONGO_ROOT_PASSWORD)@mongo:27017"
+            - name: MONGODB_DATABASE
+              value: "dogdock_agent"
+            - name: BUFFER_SIZE
+              value: "100"
+            - name: BUFFER_MAX_AGE_SEC
+              value: "10"
+            - name: NATS_URL
+              value: "nats://nats:4222"
+            - name: NATS_TOPIC
+              value: "agent.report"
+            - name: AWS_EVENTBRIDGE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: dogdock-agent-secrets
+                  key: AWS_EVENTBRIDGE_SECRET
+                  optional: true
+            - name: GCS_BUCKET
+              valueFrom:
+                secretKeyRef:
+                  name: dogdock-agent-secrets
+                  key: GCS_BUCKET
+                  optional: true
+            - name: GCS_PREFIX
+              value: "agent-logs"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: agent-webhook
+  namespace: dogdock-agent
+spec:
+  selector:
+    app: dogdock-agent-webhook
+  ports:
+    - port: 8094
+      targetPort: 8094
+
+---
+# ---------------------------------------------------------------------------
+# agent-worker (no inbound port -- subscribes to NATS, writes to Mongo)
+# ---------------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent-worker
+  namespace: dogdock-agent
+  labels:
+    app: dogdock-agent-worker
+spec:
+  # Safe to scale: NATS subscriptions use a shared queue group
+  # (NATS_QUEUE_GROUP, default "agent-worker"), so messages are
+  # load-balanced across replicas instead of duplicated.
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dogdock-agent-worker
+  template:
+    metadata:
+      labels:
+        app: dogdock-agent-worker
+    spec:
+      containers:
+        - name: agent-worker
+          image: "asia-southeast3-docker.pkg.dev/dogdock/dogdock-public/dogdock-platform-agent-worker:main"
+          imagePullPolicy: Always
+          env:
+            - name: MONGO_ROOT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: dogdock-agent-secrets
+                  key: MONGO_ROOT_USER
+            - name: MONGO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: dogdock-agent-secrets
+                  key: MONGO_ROOT_PASSWORD
+            - name: MONGODB_URI
+              value: "mongodb://$(MONGO_ROOT_USER):$(MONGO_ROOT_PASSWORD)@mongo:27017"
+            - name: MONGODB_DATABASE
+              value: "dogdock_agent"
+            - name: NATS_URL
+              value: "nats://nats:4222"
+            - name: NATS_TOPIC
+              value: "agent.report"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+
+---
+# ---------------------------------------------------------------------------
+# agent (Next.js dashboard frontend)
+#
+# NOTE: NEXT_PUBLIC_* vars are baked into this image at BUILD time (Next.js
+# constraint), not overridable here via env. The published image points at
+# DogDock's real SaaS URLs by default (agent-api.dogdock.dev / console.
+# dogdock.dev / agent.dogdock.dev) -- see dogdock-platform-agent/Dockerfile
+# ARG defaults. For a fully isolated self-hosted install, build your own
+# image with --build-arg NEXT_PUBLIC_AGENT_API_URL=... etc. pointed at your
+# cluster's real ingress hostnames, push it to your own registry, and swap
+# the image below.
+# ---------------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent
+  namespace: dogdock-agent
+  labels:
+    app: dogdock-agent-frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: dogdock-agent-frontend
+  template:
+    metadata:
+      labels:
+        app: dogdock-agent-frontend
+    spec:
+      containers:
+        - name: agent
+          image: "asia-southeast3-docker.pkg.dev/dogdock/dogdock-public/dogdock-platform-agent:main"
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3009
+              name: http
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: agent
+  namespace: dogdock-agent
+spec:
+  selector:
+    app: dogdock-agent-frontend
+  ports:
+    - port: 3009
+      targetPort: 3009
+
+---
+# ---------------------------------------------------------------------------
+# Ingress (optional) -- disabled by default. Uncomment and set your own
+# host + ingressClassName + TLS secret to expose this outside the cluster.
+# ---------------------------------------------------------------------------
+# apiVersion: networking.k8s.io/v1
+# kind: Ingress
+# metadata:
+#   name: dogdock-agent-ingress
+#   namespace: dogdock-agent
+#   annotations:
+#     nginx.ingress.kubernetes.io/ssl-redirect: "true"
+# spec:
+#   ingressClassName: nginx
+#   tls:
+#     - hosts:
+#         - agent.example.com
+#         - api.agent.example.com
+#         - webhook.agent.example.com
+#       secretName: dogdock-agent-tls
+#   rules:
+#     - host: agent.example.com
+#       http:
+#         paths:
+#           - path: /
+#             pathType: Prefix
+#             backend:
+#               service:
+#                 name: agent
+#                 port:
+#                   number: 3009
+#     - host: api.agent.example.com
+#       http:
+#         paths:
+#           - path: /
+#             pathType: Prefix
+#             backend:
+#               service:
+#                 name: agent-api
+#                 port:
+#                   number: 8093
+#     - host: webhook.agent.example.com
+#       http:
+#         paths:
+#           - path: /
+#             pathType: Prefix
+#             backend:
+#               service:
+#                 name: agent-webhook
+#                 port:
+#                   number: 8094

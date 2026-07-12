@@ -1,0 +1,115 @@
+version: "3.8"
+
+# DogDock Agent Monitor -- install via published images (no local build).
+#
+# Pulls the pre-built public images from Google Artifact Registry instead of
+# building from sibling source directories (compare with
+# ../dogdock-platform-agent-selfhosted/docker-compose.yml, which builds from
+# source -- use that one instead if you need to run unreleased/local changes).
+#
+# NOTE: the `agent` (frontend) image bakes its NEXT_PUBLIC_* URLs in at BUILD
+# time (Next.js constraint), so it points at DogDock's real SaaS by default
+# (agent-api.dogdock.dev / console.dogdock.dev / agent.dogdock.dev) -- not
+# this compose stack. For a fully isolated self-hosted install, build your
+# own `agent` image from source with --build-arg overrides instead of using
+# the published one (see ../dogdock-platform-agent-selfhosted/README.md).
+#
+# Quick start:
+#   cp .env.example .env
+#   # edit .env: set MONGO_ROOT_PASSWORD and NEXTAUTH_SECRET to real random
+#   # values (openssl rand -base64 48)
+#   docker compose up -d
+#   open http://localhost:3009
+
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-dogdock}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:?set a real password in .env}
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  nats:
+    image: nats:2-alpine
+    restart: unless-stopped
+    command: ["--jetstream", "--http_port", "8222", "--max_payload", "1048576"]
+    ports:
+      - "8222:8222" # NATS monitoring UI (optional, safe to remove for prod)
+
+  agent-webhook:
+    image: asia-southeast3-docker.pkg.dev/dogdock/dogdock-public/dogdock-platform-agent-webhook:${IMAGE_TAG:-main}
+    restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
+      nats:
+        condition: service_started
+    environment:
+      PORT: "8094"
+      MONGODB_URI: mongodb://${MONGO_ROOT_USER:-dogdock}:${MONGO_ROOT_PASSWORD:?set a real password in .env}@mongo:27017
+      MONGODB_DATABASE: dogdock_agent
+      BUFFER_SIZE: ${BUFFER_SIZE:-100}
+      BUFFER_MAX_AGE_SEC: ${BUFFER_MAX_AGE_SEC:-10}
+      NATS_URL: nats://nats:4222
+      NATS_TOPIC: agent.report
+      AWS_EVENTBRIDGE_SECRET: ${AWS_EVENTBRIDGE_SECRET:-}
+      GCS_BUCKET: ${GCS_BUCKET:-}
+      GCS_PREFIX: ${GCS_PREFIX:-agent-logs}
+    ports:
+      - "8094:8094"
+
+  agent-worker:
+    image: asia-southeast3-docker.pkg.dev/dogdock/dogdock-public/dogdock-platform-agent-worker:${IMAGE_TAG:-main}
+    restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
+      nats:
+        condition: service_started
+    environment:
+      NATS_URL: nats://nats:4222
+      NATS_TOPIC: agent.report
+      MONGODB_URI: mongodb://${MONGO_ROOT_USER:-dogdock}:${MONGO_ROOT_PASSWORD:?set a real password in .env}@mongo:27017
+      MONGODB_DATABASE: dogdock_agent
+
+  agent-api:
+    image: asia-southeast3-docker.pkg.dev/dogdock/dogdock-public/dogdock-platform-agent-api:${IMAGE_TAG:-main}
+    restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
+      nats:
+        condition: service_started
+    environment:
+      PORT: "8093"
+      MONGODB_URI: mongodb://${MONGO_ROOT_USER:-dogdock}:${MONGO_ROOT_PASSWORD:?set a real password in .env}@mongo:27017
+      MONGODB_DATABASE: dogdock_agent
+      NATS_URL: nats://nats:4222
+      NATS_TOPIC: agent.report
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:?set a real random secret in .env}
+      PLATFORM_API_URL: ${PLATFORM_API_URL:-https://api-platform.dogdock.dev}
+      # Optional, omitted by default to keep the install light -- agent-api
+      # logs a warning and keeps running without them (disables the
+      # /analytics routes and Redis-backed caching only):
+      # CLICKHOUSE_ADDR: clickhouse:9000
+      # REDIS_URL: redis:6379
+    ports:
+      - "8093:8093"
+
+  agent:
+    image: asia-southeast3-docker.pkg.dev/dogdock/dogdock-public/dogdock-platform-agent:${IMAGE_TAG:-main}
+    restart: unless-stopped
+    depends_on:
+      - agent-api
+    ports:
+      - "3009:3009"
+
+volumes:
+  mongo_data:
