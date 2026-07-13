@@ -1,0 +1,139 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 640" width="100%" height="100%" font-family="system-ui, -apple-system, sans-serif">
+  <defs>
+    <!-- Background grid -->
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" stroke-width="1" opacity="0.3" />
+    </pattern>
+
+    <!-- Shadows -->
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="115%" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000000" flood-opacity="0.4" />
+    </filter>
+
+    <!-- Gradients -->
+    <linearGradient id="blue-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3b82f6" />
+      <stop offset="100%" stop-color="#1d4ed8" />
+    </linearGradient>
+    <linearGradient id="orange-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f97316" />
+      <stop offset="100%" stop-color="#ea580c" />
+    </linearGradient>
+    <linearGradient id="connector-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#f97316" />
+      <stop offset="100%" stop-color="#3b82f6" />
+    </linearGradient>
+    <linearGradient id="card-bg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1e293b" />
+      <stop offset="100%" stop-color="#0f172a" />
+    </linearGradient>
+
+    <!-- Arrow markers -->
+    <marker id="arrow-blue" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#3b82f6" />
+    </marker>
+    <marker id="arrow-orange" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f97316" />
+    </marker>
+    <marker id="arrow-purple" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#8b5cf6" />
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="960" height="640" fill="#0b0f19" rx="16" />
+  <rect width="960" height="640" fill="url(#grid)" rx="16" />
+
+  <!-- Title Section -->
+  <text x="480" y="42" font-size="22" font-weight="bold" fill="#f8fafc" text-anchor="middle" letter-spacing="1">DOGDOCK AGENT MONITOR</text>
+  <text x="480" y="65" font-size="13" fill="#64748b" text-anchor="middle">System Architecture &amp; Telemetry Ingestion Flow</text>
+
+  <!-- Server Platform Column -->
+  <rect x="60" y="100" width="380" height="500" rx="16" fill="#0b132b" stroke="#1e293b" stroke-width="1.5" />
+  <rect x="60" y="100" width="380" height="40" rx="16" fill="#1e293b" opacity="0.4" />
+  <text x="250" y="125" text-anchor="middle" font-size="12" font-weight="bold" fill="#3b82f6" letter-spacing="0.5">DOGDOCK PLATFORM BACKEND (SERVER)</text>
+
+  <!-- Node A (Deploy Platform) -->
+  <rect x="90" y="160" width="320" height="70" rx="10" fill="url(#card-bg)" stroke="#3b82f6" stroke-width="1.5" filter="url(#shadow)" />
+  <text x="110" y="188" font-size="13" font-weight="bold" fill="#f8fafc">1. Deploy Platform Services</text>
+  <text x="110" y="208" font-size="11" fill="#64748b">Run Docker Compose or apply K8s Manifests</text>
+  <circle cx="380" cy="195" r="8" fill="#1e293b" stroke="#3b82f6" stroke-width="1" />
+  <text x="380" y="199" font-size="10" fill="#3b82f6" font-weight="bold" text-anchor="middle">S1</text>
+
+  <!-- Node B (Dashboard / Admin Setup) -->
+  <rect x="90" y="260" width="320" height="70" rx="10" fill="url(#card-bg)" stroke="#3b82f6" stroke-width="1.5" filter="url(#shadow)" />
+  <text x="110" y="288" font-size="13" font-weight="bold" fill="#f8fafc">2. Access Console Dashboard</text>
+  <text x="110" y="308" font-size="11" fill="#64748b">Create admin account &amp; go to Agent settings</text>
+  <circle cx="380" cy="295" r="8" fill="#1e293b" stroke="#3b82f6" stroke-width="1" />
+  <text x="380" y="299" font-size="10" fill="#3b82f6" font-weight="bold" text-anchor="middle">S2</text>
+
+  <!-- Node C (Ingestion Webhook) -->
+  <rect x="90" y="375" width="320" height="85" rx="10" fill="url(#card-bg)" stroke="#3b82f6" stroke-width="1.5" filter="url(#shadow)" />
+  <text x="110" y="403" font-size="13" font-weight="bold" fill="#f8fafc">5. Webhook Ingest Pipeline</text>
+  <text x="110" y="423" font-size="11" fill="#64748b">agent-webhook (8094) buffers reports to NATS</text>
+  <text x="110" y="438" font-size="11" fill="#64748b">agent-worker analyzes &amp; stores in Mongo</text>
+  <circle cx="380" cy="417" r="8" fill="#1e293b" stroke="#3b82f6" stroke-width="1" />
+  <text x="380" y="421" font-size="10" fill="#3b82f6" font-weight="bold" text-anchor="middle">S5</text>
+
+  <!-- Node D (Analysis & Alerts) -->
+  <rect x="90" y="495" width="320" height="75" rx="10" fill="url(#card-bg)" stroke="#10b981" stroke-width="1.5" filter="url(#shadow)" />
+  <text x="110" y="525" font-size="13" font-weight="bold" fill="#34d399">6. Security Analysis &amp; Alerts</text>
+  <text x="110" y="545" font-size="11" fill="#64748b">View MITRE ATT&amp;CK maps on Dashboard</text>
+  <text x="315" y="525" font-size="10" font-weight="bold" fill="#10b981" opacity="0.8">[Slack Alert]</text>
+  <circle cx="380" cy="532" r="8" fill="#111827" stroke="#10b981" stroke-width="1" />
+  <text x="380" y="536" font-size="10" fill="#10b981" font-weight="bold" text-anchor="middle">S6</text>
+
+
+  <!-- Monitored VM Host Column -->
+  <rect x="520" y="100" width="380" height="500" rx="16" fill="#160f0b" stroke="#2e1a0f" stroke-width="1.5" />
+  <rect x="520" y="100" width="380" height="40" rx="16" fill="#2d190e" opacity="0.4" />
+  <text x="710" y="125" text-anchor="middle" font-size="12" font-weight="bold" fill="#f97316" letter-spacing="0.5">MONITORED TARGET VM HOST (CLIENT)</text>
+
+  <!-- Node E (Register Agent) -->
+  <rect x="550" y="160" width="320" height="70" rx="10" fill="url(#card-bg)" stroke="#f97316" stroke-width="1.5" filter="url(#shadow)" />
+  <text x="570" y="188" font-size="13" font-weight="bold" fill="#f8fafc">3. Acquire Host Credentials</text>
+  <text x="570" y="208" font-size="11" fill="#64748b">Register VM and copy unique Agent ID &amp; Token</text>
+  <circle cx="840" cy="195" r="8" fill="#1e293b" stroke="#f97316" stroke-width="1" />
+  <text x="840" y="199" font-size="10" fill="#f97316" font-weight="bold" text-anchor="middle">C3</text>
+
+  <!-- Node F (Install systemd) -->
+  <rect x="550" y="260" width="320" height="70" rx="10" fill="url(#card-bg)" stroke="#f97316" stroke-width="1.5" filter="url(#shadow)" />
+  <text x="570" y="288" font-size="13" font-weight="bold" fill="#f8fafc">4. Install systemd Service</text>
+  <text x="570" y="308" font-size="11" fill="#64748b">Build Go binary &amp; run install.sh with keys</text>
+  <circle cx="840" cy="295" r="8" fill="#1e293b" stroke="#f97316" stroke-width="1" />
+  <text x="840" y="299" font-size="10" fill="#f97316" font-weight="bold" text-anchor="middle">C4</text>
+
+  <!-- Node G (Collector Telemetry Engine) -->
+  <rect x="550" y="375" width="320" height="85" rx="10" fill="url(#card-bg)" stroke="#f97316" stroke-width="1.5" filter="url(#shadow)" />
+  <text x="570" y="403" font-size="13" font-weight="bold" fill="#f8fafc">Active Telemetry Daemon</text>
+  <text x="570" y="423" font-size="11" fill="#64748b">Scans VM processes, open ports, cron tasks,</text>
+  <text x="570" y="438" font-size="11" fill="#64748b">and auth logs; posts JSON reports every 60s</text>
+  <circle cx="840" cy="417" r="8" fill="#1e293b" stroke="#f97316" stroke-width="1" />
+  <text x="840" y="421" font-size="10" fill="#f97316" font-weight="bold" text-anchor="middle">C5</text>
+
+
+  <!-- Connectors & Arrows -->
+  
+  <!-- S1 -> S2 -->
+  <path d="M 250 230 L 250 252" stroke="#3b82f6" stroke-width="2" marker-end="url(#arrow-blue)" fill="none" />
+
+  <!-- S2 -> C3 (Cross communication) -->
+  <path d="M 410 295 L 480 295 L 480 195 L 542 195" stroke="#8b5cf6" stroke-width="2" stroke-dasharray="4 4" marker-end="url(#arrow-purple)" fill="none" />
+  <rect x="435" y="235" width="90" height="20" rx="4" fill="#1e1b4b" stroke="#8b5cf6" stroke-width="1" />
+  <text x="480" y="248" font-size="9" font-weight="bold" fill="#c084fc" text-anchor="middle">Get ID &amp; Token</text>
+
+  <!-- C3 -> C4 -->
+  <path d="M 710 230 L 710 252" stroke="#f97316" stroke-width="2" marker-end="url(#arrow-orange)" fill="none" />
+
+  <!-- C4 -> C5 -->
+  <path d="M 710 330 L 710 367" stroke="#f97316" stroke-width="2" marker-end="url(#arrow-orange)" fill="none" />
+
+  <!-- C5 -> S5 (Telemetry report post) -->
+  <path d="M 550 417 L 420 417" stroke="url(#connector-grad)" stroke-width="2.5" marker-end="url(#arrow-blue)" fill="none" />
+  <rect x="435" y="387" width="90" height="20" rx="4" fill="#2d190e" stroke="#f97316" stroke-width="1" />
+  <text x="480" y="400" font-size="9" font-weight="bold" fill="#ffedd5" text-anchor="middle">HTTP POST (8094)</text>
+
+  <!-- S5 -> S6 -->
+  <path d="M 250 460 L 250 487" stroke="#3b82f6" stroke-width="2" marker-end="url(#arrow-blue)" fill="none" />
+
+</svg>

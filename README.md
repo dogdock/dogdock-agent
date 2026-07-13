@@ -21,6 +21,10 @@ This repository contains deployment artifacts ([docker-compose.yml](file:///User
 
 Additionally, standard images `mongo:7` (storage) and `nats:2-alpine` (message bus) are pulled directly from Docker Hub.
 
+### 🔄 Usage & Ingestion Flow
+
+![Usage & Ingestion Flow](assets/flow.svg)
+
 ---
 
 ### 🚀 Quick Start — Docker Compose
@@ -113,6 +117,10 @@ To monitor a host VM/server, you must install the [dogdock-agent-collector](file
 | `agent-worker` | `asia-southeast3-docker.pkg.dev/dogdock/dogdock-public/dogdock-platform-agent-worker` | — | ดึงข้อมูลจากคิวมาวิเคราะห์พฤติกรรมความปลอดภัยและบันทึกลง MongoDB |
 
 นอกจากนี้ จะมีการดึงบริการเสริมระบบจัดการคิวอย่าง `nats:2-alpine` และระบบจัดเก็บฐานข้อมูลอย่าง `mongo:7` จาก Docker Hub โดยตรง
+
+### 🔄 แผนภาพขั้นตอนการใช้งาน (Usage & Ingestion Flow)
+
+![Usage & Ingestion Flow](assets/flow.svg)
 
 ---
 
