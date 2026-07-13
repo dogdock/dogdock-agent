@@ -51,7 +51,7 @@ Additionally, standard images `mongo:7` (storage) and `nats:2-alpine` (message b
 2. Edit the placeholders for `MONGO_ROOT_PASSWORD` and `NEXTAUTH_SECRET` in the `Secret` resource with base64-encoded values.
 3. Deploy to your cluster:
    ```bash
-   kubectl apply -f k8s/dogdock-agent-deploy.yaml
+   kubectl apply -f https://github.com/dogdock/dogdock-agent/blob/dbf3d77a57c2aa0b23b4230547733b2f630f1014/k8s/dogdock-agent-deploy.yaml
    ```
 4. Verify the pods are running:
    ```bash
@@ -144,7 +144,7 @@ To monitor a host VM/server, you must install the [dogdock-agent-collector](file
 2. แก้ไขส่วนค่าของ `MONGO_ROOT_PASSWORD` และ `NEXTAUTH_SECRET` ในชนิดข้อมูล `Secret` ให้เป็นค่าที่ผ่านการเข้ารหัส base64 เรียบร้อยแล้ว
 3. สั่งติดตั้งบริการลงบนคลัสเตอร์:
    ```bash
-   kubectl apply -f k8s/dogdock-agent-deploy.yaml
+   kubectl apply -f https://github.com/dogdock/dogdock-agent/blob/dbf3d77a57c2aa0b23b4230547733b2f630f1014/k8s/dogdock-agent-deploy.yaml
    ```
 4. ตรวจสอบสถานะ Pod ภายใน namespace:
    ```bash
